@@ -1,0 +1,444 @@
+<script>
+/* ===== STANJE ===== */
+let balance = 1000;
+let currentUser = null;
+const balEl = document.getElementById('balance');
+
+function setBalance(v){ balance = v; balEl.textContent = Math.floor(balance); saveUser(); }
+function getBet(id){ return Math.max(1, Math.floor(Number(document.getElementById(id).value) || 1)); }
+
+/* ===== KORISNICI (localStorage) ===== */
+function getUsers(){ try { return JSON.parse(localStorage.getItem('da_users') || '{}'); } catch(e){ return {}; } }
+function saveUsers(u){ localStorage.setItem('da_users', JSON.stringify(u)); }
+
+function registerUser(username, password){
+  const users = getUsers();
+  if(users[username]) return { ok:false, msg:'Korisničko ime već postoji.' };
+  users[username] = { pass: password, balance: 1000 };
+  saveUsers(users);
+  return { ok:true };
+}
+function loginUser(username, password){
+  const users = getUsers();
+  if(!users[username]) return { ok:false, msg:'Nalog ne postoji. Registruj se prvo.' };
+  if(users[username].pass !== password) return { ok:false, msg:'Pogrešna lozinka.' };
+  return { ok:true, balance: users[username].balance };
+}
+function saveUser(){
+  if(!currentUser) return;
+  const users = getUsers();
+  if(users[currentUser]){ users[currentUser].balance = balance; saveUsers(users); }
+}
+
+/* ===== ZAKLJUČAVANJE SAJTA ===== */
+function lockSite(){
+  document.querySelector('header').style.display = 'none';
+  document.querySelector('.hero').style.display = 'none';
+  document.querySelector('main').style.display = 'none';
+  document.querySelector('footer').style.display = 'none';
+  showAuthScreen();
+}
+function unlockSite(){
+  document.querySelector('header').style.display = '';
+  document.querySelector('.hero').style.display = '';
+  document.querySelector('main').style.display = '';
+  document.querySelector('footer').style.display = '';
+  document.getElementById('authScreen')?.remove();
+  document.getElementById('loginBtn').textContent = '👤 ' + currentUser;
+  showHome();
+}
+
+function showAuthScreen(){
+  if(document.getElementById('authScreen')) return;
+  const div = document.createElement('div');
+  div.id = 'authScreen';
+  div.style.cssText = `
+    position:fixed; inset:0; z-index:500;
+    background: radial-gradient(1000px 500px at 50% -10%, #1c2130 0%, #0a0c12 60%);
+    display:flex; align-items:center; justify-content:center; padding:20px;
+    overflow-y:auto;
+  `;
+  div.innerHTML = `
+    <div style="max-width:420px; width:100%; background:linear-gradient(160deg,#1b1f2a,#0f1219);
+                border:2px solid #d4af37; border-radius:20px; padding:32px;
+                box-shadow:0 20px 60px rgba(0,0,0,.6), 0 0 60px rgba(212,175,55,.2);">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div style="font-size:26px; font-weight:900; letter-spacing:1.5px;
+                    background:linear-gradient(90deg,#f9e29c,#d4af37,#f9e29c);
+                    -webkit-background-clip:text; background-clip:text; color:transparent;">
+          D&amp;A GRAND CASINO
+        </div>
+        <div style="font-size:11px; color:#8b90a0; margin-top:6px; letter-spacing:1px;">
+          DEMO • VIRTUELNI KREDITI
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:20px;">
+        <button id="tabLogin" onclick="switchTab('login')"
+          style="flex:1; padding:12px; border-radius:10px; border:2px solid #d4af37;
+                 background:linear-gradient(180deg,#f9e29c,#d4af37); color:#111;
+                 font-weight:800; cursor:pointer; font-size:14px;">Prijava</button>
+        <button id="tabRegister" onclick="switchTab('register')"
+          style="flex:1; padding:12px; border-radius:10px; border:2px solid #2a2f3d;
+                 background:linear-gradient(180deg,#2a3040,#1c2130); color:#e8e8ee;
+                 font-weight:800; cursor:pointer; font-size:14px;">Registracija</button>
+      </div>
+
+      <div id="authForm">
+        <input id="authUser" type="text" placeholder="Korisničko ime"
+          style="width:100%; padding:13px 16px; border-radius:10px; border:1px solid #2a2f3d;
+                 background:#0d1017; color:#e8e8ee; font-size:14px; margin-bottom:12px; font-weight:600;">
+        <input id="authPass" type="password" placeholder="Lozinka"
+          style="width:100%; padding:13px 16px; border-radius:10px; border:1px solid #2a2f3d;
+                 background:#0d1017; color:#e8e8ee; font-size:14px; margin-bottom:12px; font-weight:600;">
+        <input id="authPass2" type="password" placeholder="Ponovi lozinku (samo registracija)"
+          style="width:100%; padding:13px 16px; border-radius:10px; border:1px solid #2a2f3d;
+                 background:#0d1017; color:#e8e8ee; font-size:14px; margin-bottom:12px; font-weight:600; display:none;">
+        <button id="authBtn" onclick="submitAuth()"
+          style="width:100%; padding:14px; border-radius:10px; border:none;
+                 background:linear-gradient(180deg,#f9e29c,#d4af37); color:#111;
+                 font-weight:900; cursor:pointer; font-size:15px; letter-spacing:.5px;">
+          Uđi u Casino
+        </button>
+        <div id="authMsg" style="margin-top:14px; font-size:13px; font-weight:700; min-height:20px;
+                                 color:#e74c3c; text-align:center;"></div>
+        <div style="margin-top:18px; font-size:11px; color:#8b90a0; text-align:center; line-height:1.5;">
+          Demo prijava. Nalog se čuva samo u tvom browseru.<br>
+          Nema pravog novca — sve je virtuelno.
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(div);
+  let mode = 'login';
+  window.switchTab = function(m){
+    mode = m;
+    document.getElementById('tabLogin').style.background = m==='login' ? 'linear-gradient(180deg,#f9e29c,#d4af37)' : 'linear-gradient(180deg,#2a3040,#1c2130)';
+    document.getElementById('tabLogin').style.color = m==='login' ? '#111' : '#e8e8ee';
+    document.getElementById('tabLogin').style.borderColor = m==='login' ? '#d4af37' : '#2a2f3d';
+    document.getElementById('tabRegister').style.background = m==='register' ? 'linear-gradient(180deg,#f9e29c,#d4af37)' : 'linear-gradient(180deg,#2a3040,#1c2130)';
+    document.getElementById('tabRegister').style.color = m==='register' ? '#111' : '#e8e8ee';
+    document.getElementById('tabRegister').style.borderColor = m==='register' ? '#d4af37' : '#2a2f3d';
+    document.getElementById('authPass2').style.display = m==='register' ? 'block' : 'none';
+    document.getElementById('authBtn').textContent = m==='register' ? 'Napravi nalog' : 'Uđi u Casino';
+    document.getElementById('authMsg').textContent = '';
+  };
+  window.submitAuth = function(){
+    const u = document.getElementById('authUser').value.trim();
+    const p = document.getElementById('authPass').value;
+    const p2 = document.getElementById('authPass2').value;
+    const msg = document.getElementById('authMsg');
+    if(u.length < 3){ msg.textContent = 'Ime mora imati bar 3 znaka.'; return; }
+    if(p.length < 3){ msg.textContent = 'Lozinka mora imati bar 3 znaka.'; return; }
+    if(mode === 'register'){
+      if(p !== p2){ msg.textContent = 'Lozinke se ne poklapaju.'; return; }
+      const r = registerUser(u, p);
+      if(!r.ok){ msg.textContent = r.msg; return; }
+      currentUser = u; balance = 1000;
+      saveUser(); unlockSite();
+    } else {
+      const r = loginUser(u, p);
+      if(!r.ok){ msg.textContent = r.msg; return; }
+      currentUser = u; balance = r.balance; setBalance(balance);
+      unlockSite();
+    }
+  };
+}
+
+/* ===== AUTO-LOGIN (ako je već ulogovan) ===== */
+(function initApp(){
+  const saved = localStorage.getItem('da_current');
+  if(saved){
+    const users = getUsers();
+    if(users[saved]){ currentUser = saved; balance = users[saved].balance; setBalance(balance); unlockSite(); return; }
+  }
+  lockSite();
+})();
+
+/* ===== ODJAVA ===== */
+function logout(){
+  localStorage.removeItem('da_current');
+  currentUser = null; balance = 1000;
+  location.reload();
+}
+
+/* ===== JACKPOT ===== */
+setInterval(()=>{
+  const jp = document.getElementById('jackpot');
+  if(!jp) return;
+  let v = parseInt(jp.textContent.replace(/,/g,'')) + Math.floor(Math.random()*80);
+  jp.textContent = v.toLocaleString('en-US');
+}, 3000);
+
+/* ===== NAV ===== */
+function showHome(){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-home').classList.add('active');
+  document.getElementById('navHome').classList.add('active');
+}
+function openGame(g){
+  if(!currentUser){ lockSite(); return; }
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const map = {slot:'view-slot',crash:'view-crash',plinko:'view-plinko',mines:'view-mines',
+               roulette:'view-roulette',blackjack:'view-blackjack',baccarat:'view-baccarat'};
+  const id = map[g];
+  if(!id){ alert('Igra nije dostupna.'); return; }
+  document.getElementById(id).classList.add('active');
+  document.getElementById('navHome').classList.remove('active');
+  if(g==='plinko') buildPlinko();
+  if(g==='roulette') buildRoulette();
+}
+
+/* ===== OSTALE IGRE (isto kao pre) ===== */
+const slotSymbols = ['📖','💎','🍒','7️⃣','⭐','🔔','🍋','💰'];
+function spinSlot(){
+  const bet = getBet('slotBet');
+  if(bet > balance){ document.getElementById('slotMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  document.getElementById('slotSpin').disabled = true;
+  document.getElementById('slotMsg').textContent = '...';
+  for(let i=0;i<3;i++) document.getElementById('reel'+i).classList.add('spinning');
+  let ticks = 0;
+  const timer = setInterval(()=>{
+    for(let i=0;i<3;i++) document.getElementById('reel'+i).textContent = slotSymbols[Math.floor(Math.random()*slotSymbols.length)];
+    if(++ticks > 15){ clearInterval(timer); for(let i=0;i<3;i++) document.getElementById('reel'+i).classList.remove('spinning'); finishSlot(bet); }
+  }, 80);
+}
+function finishSlot(bet){
+  const r = [0,1,2].map(()=>slotSymbols[Math.floor(Math.random()*slotSymbols.length)]);
+  r.forEach((s,i)=>document.getElementById('reel'+i).textContent = s);
+  let win = 0;
+  if(r[0]===r[1] && r[1]===r[2]) win = bet * 10;
+  else if(r[0]===r[1] || r[1]===r[2] || r[0]===r[2]) win = bet * 2;
+  setBalance(balance + win);
+  document.getElementById('slotMsg').textContent = win ? `🎉 Dobitak: ${win} kr!` : 'Nema dobitka. Probaj opet!';
+  document.getElementById('slotSpin').disabled = false;
+}
+
+let crashInterval=null, crashMult=1, crashActive=false, crashBetVal=0;
+function startCrash(){
+  if(crashActive) return;
+  const bet = getBet('crashBet');
+  if(bet > balance){ document.getElementById('crashMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  crashBetVal = bet; crashActive = true; crashMult = 1;
+  const disp = document.getElementById('crashMult');
+  disp.classList.remove('crashed');
+  document.getElementById('crashStart').disabled = true;
+  document.getElementById('crashCash').disabled = false;
+  document.getElementById('crashMsg').textContent = '✈️ Letimo! Unovči pre nego što padne...';
+  const crashPoint = 1 + Math.random()*4 + Math.random()*Math.random()*18;
+  crashInterval = setInterval(()=>{
+    crashMult += 0.03 + crashMult*0.01;
+    disp.textContent = crashMult.toFixed(2)+'x';
+    if(crashMult >= crashPoint){
+      clearInterval(crashInterval); crashActive = false;
+      disp.classList.add('crashed');
+      disp.textContent = '💥 ' + crashPoint.toFixed(2) + 'x';
+      document.getElementById('crashMsg').textContent = `💥 Puklo na ${crashPoint.toFixed(2)}x. Izgubio si ${crashBetVal} kr.`;
+      document.getElementById('crashStart').disabled = false;
+      document.getElementById('crashCash').disabled = true;
+    }
+  }, 100);
+}
+function cashOutCrash(){
+  if(!crashActive) return;
+  clearInterval(crashInterval); crashActive = false;
+  const win = Math.floor(crashBetVal * crashMult);
+  setBalance(balance + win);
+  document.getElementById('crashMsg').textContent = `🎉 Unovčio si na ${crashMult.toFixed(2)}x — dobitak ${win} kr!`;
+  document.getElementById('crashStart').disabled = false;
+  document.getElementById('crashCash').disabled = true;
+}
+
+function buildPlinko(){
+  const board = document.getElementById('plinkoBoard'); board.innerHTML = '';
+  for(let row=0; row<8; row++){
+    const div = document.createElement('div'); div.className='plinko-row';
+    for(let i=0;i<=row;i++){ const peg=document.createElement('div'); peg.className='peg'; div.appendChild(peg); }
+    board.appendChild(div);
+  }
+  const slots = document.createElement('div'); slots.className='plinko-slots';
+  ['10x','5x','2x','1x','0.5x','1x','2x','5x','10x'].forEach(m=>{
+    const s=document.createElement('div'); s.className='plinko-slot'; s.textContent=m; slots.appendChild(s);
+  });
+  board.appendChild(slots);
+}
+function dropPlinko(){
+  const bet = getBet('plinkoBet');
+  if(bet > balance){ document.getElementById('plinkoMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  const mults = [10,5,2,1,0.5,1,2,5,10];
+  const mult = mults[Math.floor(Math.random()*mults.length)];
+  const win = Math.floor(bet * mult);
+  setBalance(balance + win);
+  document.getElementById('plinkoMsg').textContent = `🎉 Loptica pala na ${mult}x — dobitak ${win} kr!`;
+}
+
+let minesActive=false, minesBetVal=0, minesRevealed=0, minesBombs=[];
+function startMines(){
+  const bet = getBet('minesBet');
+  if(bet > balance){ document.getElementById('minesMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  minesBetVal=bet; minesActive=true; minesRevealed=0; minesBombs=[];
+  while(minesBombs.length<3){ const p=Math.floor(Math.random()*25); if(!minesBombs.includes(p)) minesBombs.push(p); }
+  const grid = document.getElementById('minesGrid'); grid.innerHTML='';
+  for(let i=0;i<25;i++){
+    const c=document.createElement('div'); c.className='mine-cell'; c.dataset.idx=i;
+    c.onclick=()=>revealMine(c,i); grid.appendChild(c);
+  }
+  document.getElementById('minesStart').disabled = true;
+  document.getElementById('minesCash').disabled = false;
+  document.getElementById('minesMsg').textContent = '💎 Igraj! 3 bombe su skrivene.';
+}
+function revealMine(cell, idx){
+  if(!minesActive || cell.classList.contains('revealed')) return;
+  cell.classList.add('revealed');
+  if(minesBombs.includes(idx)){
+    cell.classList.add('bomb'); cell.textContent='💣';
+    minesBombs.forEach(b=>{ const c=document.querySelector(`.mine-cell[data-idx="${b}"]`); if(c && !c.classList.contains('revealed')){ c.classList.add('revealed','bomb'); c.textContent='💣'; } });
+    minesActive=false;
+    document.getElementById('minesMsg').textContent = `💣 Bomba! Izgubio si ${minesBetVal} kr.`;
+    document.getElementById('minesStart').disabled = false;
+    document.getElementById('minesCash').disabled = true;
+  } else {
+    cell.classList.add('gem'); cell.textContent='💎'; minesRevealed++;
+    const mult = 1 + minesRevealed * 0.4;
+    document.getElementById('minesMsg').textContent = `💎 Otkriveno ${minesRevealed} dragulja — množitelj ${mult.toFixed(1)}x`;
+  }
+}
+function cashOutMines(){
+  if(!minesActive || minesRevealed===0) return;
+  const mult = 1 + minesRevealed * 0.4;
+  const win = Math.floor(minesBetVal * mult);
+  setBalance(balance + win);
+  minesActive=false;
+  document.getElementById('minesMsg').textContent = `🎉 Unovčeno na ${mult.toFixed(1)}x — dobitak ${win} kr!`;
+  document.getElementById('minesStart').disabled = false;
+  document.getElementById('minesCash').disabled = true;
+}
+
+const rouletteNumbers = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+function buildRoulette(){
+  const board = document.getElementById('rouletteBoard'); board.innerHTML='';
+  rouletteNumbers.forEach(n=>{
+    const c = document.createElement('div');
+    c.className = 'r-cell ' + (n===0?'green':(n%2===0?'black':'red'));
+    c.textContent = n;
+    c.onclick = ()=>playRoulette(n);
+    board.appendChild(c);
+  });
+}
+function playRoulette(pick){
+  const bet = getBet('roulBet');
+  if(bet > balance){ document.getElementById('roulMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  const result = rouletteNumbers[Math.floor(Math.random()*rouletteNumbers.length)];
+  let win = 0;
+  if(result === pick) win = bet * 36;
+  else if(pick !== 0 && result !== 0){
+    const pickRed = pick % 2 === 1;
+    const resRed = result % 2 === 1;
+    if(pickRed === resRed) win = bet * 2;
+  }
+  setBalance(balance + win);
+  document.getElementById('roulMsg').textContent =
+    `🎡 Palo je ${result}. ${win ? `🎉 Dobitak ${win} kr!` : 'Nema dobitka.'}`;
+}
+
+let bjDeck=[], bjPlayer=[], bjDealer=[], bjActive=false;
+function newDeck(){
+  const suits=['♠','♥','♦','♣']; const vals=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+  const deck=[]; suits.forEach(s=>vals.forEach(v=>deck.push({s,v})));
+  return deck.sort(()=>Math.random()-0.5);
+}
+function cardValue(c){
+  if(c.v==='A') return 11;
+  if(['J','Q','K'].includes(c.v)) return 10;
+  return parseInt(c.v);
+}
+function handTotal(hand){
+  let total = hand.reduce((a,c)=>a+cardValue(c),0);
+  let aces = hand.filter(c=>c.v==='A').length;
+  while(total>21 && aces>0){ total-=10; aces--; }
+  return total;
+}
+function renderCards(el, hand, hideFirst=false){
+  el.innerHTML='';
+  hand.forEach((c,i)=>{
+    const card = document.createElement('div');
+    const red = c.s==='♥'||c.s==='♦';
+    if(hideFirst && i===0){ card.className='card back'; card.textContent='🂠'; }
+    else { card.className='card'+(red?' red':''); card.innerHTML=`<div>${c.v}</div><div class="suit">${c.s}</div>`; }
+    el.appendChild(card);
+  });
+}
+function bjDeal(){
+  const bet = getBet('bjBet');
+  if(bet > balance){ document.getElementById('bjMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  bjDeck = newDeck(); bjPlayer=[bjDeck.pop(), bjDeck.pop()]; bjDealer=[bjDeck.pop(), bjDeck.pop()];
+  bjActive = true;
+  renderCards(document.getElementById('dealerCards'), bjDealer, true);
+  renderCards(document.getElementById('playerCards'), bjPlayer);
+  document.getElementById('bjDeal').disabled = true;
+  document.getElementById('bjHit').disabled = false;
+  document.getElementById('bjStand').disabled = false;
+  const pt = handTotal(bjPlayer);
+  document.getElementById('bjMsg').textContent = `Tvoj zbir: ${pt}`;
+  if(pt === 21){ bjStand(); }
+}
+function bjHit(){
+  if(!bjActive) return;
+  bjPlayer.push(bjDeck.pop());
+  renderCards(document.getElementById('playerCards'), bjPlayer);
+  const pt = handTotal(bjPlayer);
+  document.getElementById('bjMsg').textContent = `Tvoj zbir: ${pt}`;
+  if(pt > 21){
+    bjActive = false;
+    document.getElementById('bjMsg').textContent = `💥 Previše! ${pt} — izgubio si.`;
+    document.getElementById('bjDeal').disabled = false;
+    document.getElementById('bjHit').disabled = true;
+    document.getElementById('bjStand').disabled = true;
+  }
+}
+function bjStand(){
+  if(!bjActive) return;
+  bjActive = false;
+  while(handTotal(bjDealer) < 17) bjDealer.push(bjDeck.pop());
+  renderCards(document.getElementById('dealerCards'), bjDealer);
+  const pt = handTotal(bjPlayer), dt = handTotal(bjDealer);
+  let msg = `Ti: ${pt} | Diler: ${dt} — `;
+  if(dt > 21 || pt > dt){ msg += '🎉 Pobedio si!'; setBalance(balance + getBet('bjBet')*2); }
+  else if(pt === dt){ msg += 'Nerešeno, ulog vraćen.'; setBalance(balance + getBet('bjBet')); }
+  else { msg += 'Diler pobeđuje.'; }
+  document.getElementById('bjMsg').textContent = msg;
+  document.getElementById('bjDeal').disabled = false;
+  document.getElementById('bjHit').disabled = true;
+  document.getElementById('bjStand').disabled = true;
+}
+
+function drawBacCard(){ return Math.floor(Math.random()*10); }
+function bacPlay(pick){
+  const bet = getBet('bacBet');
+  if(bet > balance){ document.getElementById('bacMsg').textContent='Nemaš dovoljno kredita!'; return; }
+  setBalance(balance - bet);
+  const player = (drawBacCard()+drawBacCard()) % 10;
+  const banker = (drawBacCard()+drawBacCard()) % 10;
+  let msg = `Igrač: ${player} | Banker: ${banker} — `;
+  let win = 0;
+  if(player === banker){
+    if(pick === 'tie') win = bet * 8;
+    else win = bet;
+    msg += (pick==='tie') ? '🎉 Nerešeno! Veliki dobitak!' : 'Nerešeno, ulog vraćen.';
+  } else if(player > banker){
+    if(pick === 'player') win = bet * 2;
+    msg += pick==='player' ? '🎉 Igrač pobeđuje — ti si pogodio!' : 'Igrač pobeđuje.';
+  } else {
+    if(pick === 'banker') win = Math.floor(bet * 1.95);
+    msg += pick==='banker' ? '🎉 Banker pobeđuje — ti si pogodio!' : 'Banker pobeđuje.';
+  }
+  setBalance(balance + win);
+  document.getElementById('bacMsg').textContent = msg;
+}
+</script>
